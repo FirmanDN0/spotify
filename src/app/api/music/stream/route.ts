@@ -21,6 +21,41 @@ const YT_DLP_PATH = path.join(
  * Extract audio URL using yt-dlp as PRIMARY (most reliable).
  * Falls back to ytdl-core only if yt-dlp fails.
  */
+// List of Piped API instances to try
+const PIPED_INSTANCES = [
+  "https://pipedapi.kavin.rocks",
+  "https://api.piped.victr.me",
+  "https://pipedapi.tokhmi.xyz",
+];
+
+/**
+ * Fallback: Get audio URL via Piped API (Highly effective against IP blocks)
+ */
+async function getPipedAudioUrl(videoId: string): Promise<string | null> {
+  for (const instance of PIPED_INSTANCES) {
+    try {
+      console.log(`[Stream] Trying Piped API via ${instance} for ${videoId}...`);
+      const res = await fetch(`${instance}/streams/${videoId}`, {
+        next: { revalidate: 3600 }
+      });
+      if (!res.ok) continue;
+      
+      const data = await res.json();
+      // Piped returns audio-only streams in 'audioStreams'
+      const audioStream = data.audioStreams?.find((s: any) => s.format === "M4A" || s.format === "WEB_M") 
+                        || data.audioStreams?.[0];
+      
+      if (audioStream?.url) {
+        console.log(`[Stream] Piped API OK (${instance}) for ${videoId}`);
+        return audioStream.url;
+      }
+    } catch (err) {
+      console.warn(`[Stream] Piped instance ${instance} failed:`, err);
+    }
+  }
+  return null;
+}
+
 async function getAudioUrl(videoId: string): Promise<string | null> {
   const cached = urlCache.get(videoId);
   if (cached && Date.now() < cached.expires) {
@@ -66,9 +101,16 @@ async function getAudioUrl(videoId: string): Promise<string | null> {
     console.warn(`[Stream] yt-dlp failed for ${videoId}:`, err.message?.substring(0, 200));
   }
 
-  // Fallback 1: play-dl (Modern, serverless friendly)
+  // Fallback 1: Piped API (Best for Vercel/Serverless)
+  const pipedUrl = await getPipedAudioUrl(videoId);
+  if (pipedUrl) {
+    urlCache.set(videoId, { url: pipedUrl, expires: Date.now() + 5 * 60 * 1000 });
+    return pipedUrl;
+  }
+
+  // Fallback 2: play-dl (Modern, serverless friendly)
   try {
-    console.log(`[Stream] Fallback 1: Trying play-dl for ${videoId}...`);
+    console.log(`[Stream] Fallback 2: Trying play-dl for ${videoId}...`);
     const play = require("play-dl");
     const info = await play.video_info(`https://www.youtube.com/watch?v=${videoId}`);
     const stream = await play.stream_from_info(info, { quality: 2 }); // bestaudio
@@ -84,7 +126,7 @@ async function getAudioUrl(videoId: string): Promise<string | null> {
 
   // Fallback 2: ytdl-core
   try {
-    console.log(`[Stream] Fallback 2: Trying ytdl-core for ${videoId}...`);
+    console.log(`[Stream] Fallback 3: Trying ytdl-core for ${videoId}...`);
     const ytdl = require("@distube/ytdl-core");
     const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`, {
       requestOptions: {
