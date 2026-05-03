@@ -9,9 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "clsx": "^2.1.1",
+    "fast-average-color": "^9.5.2",
+    "lucide-react": "^1.14.0",
     "next": "16.2.4",
+    "play-dl": "^1.9.7",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tailwind-merge": "^3.5.0",
+    "youtube-dl-exec": "^3.1.5",
+    "youtube-music-api": "^1.0.6",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
