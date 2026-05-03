@@ -66,9 +66,25 @@ async function getAudioUrl(videoId: string): Promise<string | null> {
     console.warn(`[Stream] yt-dlp failed for ${videoId}:`, err.message?.substring(0, 200));
   }
 
-  // Fallback: ytdl-core
+  // Fallback 1: play-dl (Modern, serverless friendly)
   try {
-    console.log(`[Stream] Fallback: Trying ytdl-core for ${videoId}...`);
+    console.log(`[Stream] Fallback 1: Trying play-dl for ${videoId}...`);
+    const play = require("play-dl");
+    const info = await play.video_info(`https://www.youtube.com/watch?v=${videoId}`);
+    const stream = await play.stream_from_info(info, { quality: 2 }); // bestaudio
+
+    if (stream?.url) {
+      console.log(`[Stream] play-dl OK for ${videoId}`);
+      urlCache.set(videoId, { url: stream.url, expires: Date.now() + 5 * 60 * 1000 });
+      return stream.url;
+    }
+  } catch (err: any) {
+    console.warn(`[Stream] play-dl fallback failed for ${videoId}:`, err.message);
+  }
+
+  // Fallback 2: ytdl-core
+  try {
+    console.log(`[Stream] Fallback 2: Trying ytdl-core for ${videoId}...`);
     const ytdl = require("@distube/ytdl-core");
     const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`, {
       requestOptions: {
