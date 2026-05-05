@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFileSync } from "child_process";
 import path from "path";
+import play from "play-dl";
 
 export const dynamic = "force-dynamic";
 
-// Cache audio URLs for 5 minutes
-const urlCache = new Map<string, { url: string; expires: number }>();
-
-// Resolve yt-dlp binary path dynamically based on OS
 const isWindows = process.platform === "win32";
 const YT_DLP_PATH = path.join(
   process.cwd(),
@@ -18,73 +15,42 @@ const YT_DLP_PATH = path.join(
 );
 
 async function getAudioUrl(videoId: string): Promise<string | null> {
-  const cached = urlCache.get(videoId);
-  if (cached && Date.now() < cached.expires) {
-    console.log(`[Stream] Cache hit for ${videoId}`);
-    return cached.url;
-  }
+  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-  // 1. Primary: yt-dlp
+  // 1. Try yt-dlp (works best locally)
   try {
-    console.log(`[Stream] Primary extraction via yt-dlp for ${videoId}...`);
-
+    console.log(`[Stream] Trying yt-dlp for ${videoId}...`);
     const result = execFileSync(YT_DLP_PATH, [
-      `https://www.youtube.com/watch?v=${videoId}`,
+      videoUrl,
       "--dump-single-json",
       "--no-warnings",
-      "--no-check-certificate",
-      "--extractor-args", "youtube:player_client=android,web",
       "--format", "bestaudio[ext=m4a]/bestaudio/best",
-    ], {
-      encoding: "utf-8",
-      timeout: 25000,
-    });
-
+    ], { encoding: "utf-8", timeout: 10000 });
+    
     const output = JSON.parse(result);
-    let audioUrl: string | null = output.url || null;
-
-    if (!audioUrl && output.formats?.length > 0) {
-      const audioFormats = output.formats.filter(
-        (f: any) => f.acodec !== "none" && f.vcodec === "none"
-      );
-      const m4a = audioFormats.find((f: any) => f.ext === "m4a");
-      const picked = m4a || audioFormats[audioFormats.length - 1];
-      audioUrl = picked?.url || null;
-    }
-
-    if (audioUrl) {
-      console.log(`[Stream] yt-dlp OK for ${videoId}`);
-      urlCache.set(videoId, { url: audioUrl, expires: Date.now() + 5 * 60 * 1000 });
-      return audioUrl;
+    if (output.url) {
+      console.log(`[Stream] yt-dlp success for ${videoId}`);
+      return output.url;
     }
   } catch (err: any) {
-    console.warn(`[Stream] yt-dlp failed for ${videoId}:`, err.message?.substring(0, 200));
+    console.warn(`[Stream] yt-dlp failed:`, err.message?.substring(0, 100));
   }
 
-  // 2. Secondary: ytdl-core
+  // 2. Try play-dl (better for Vercel)
   try {
-    console.log(`[Stream] Secondary extraction via ytdl-core for ${videoId}...`);
-    const ytdl = require("@distube/ytdl-core");
-    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`, {
-      requestOptions: {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        }
-      }
-    });
-
-    const format = ytdl.chooseFormat(info.formats, {
-      filter: "audioonly",
-      quality: "highestaudio"
-    });
-
+    console.log(`[Stream] Trying play-dl for ${videoId}...`);
+    const info = await play.video_info(videoUrl);
+    // Find highest bitrate audio format that has a URL
+    const format = info.format
+      .filter(f => f.mimeType?.includes('audio') && f.url)
+      .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+    
     if (format?.url) {
-      console.log(`[Stream] ytdl-core OK for ${videoId}`);
-      urlCache.set(videoId, { url: format.url, expires: Date.now() + 5 * 60 * 1000 });
+      console.log(`[Stream] play-dl success for ${videoId}`);
       return format.url;
     }
   } catch (err: any) {
-    console.error(`[Stream] ytdl-core failed for ${videoId}:`, err.message);
+    console.error(`[Stream] play-dl failed:`, err.message);
   }
 
   return null;
@@ -94,65 +60,43 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
-  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id) || id.length > 100) {
-    return NextResponse.json({ error: "Invalid video ID" }, { status: 400 });
+  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
   const audioUrl = await getAudioUrl(id);
 
   if (!audioUrl) {
-    return NextResponse.json(
-      { error: "Could not extract audio" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Extraction failed" }, { status: 500 });
   }
 
-  // Proxy the audio stream to the browser
   try {
     const rangeHeader = request.headers.get("range");
     const fetchHeaders: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
       "Referer": "https://www.youtube.com/",
-      "Origin": "https://www.youtube.com",
     };
-    if (rangeHeader) {
-      fetchHeaders["Range"] = rangeHeader;
-    }
+    
+    if (rangeHeader) fetchHeaders["Range"] = rangeHeader;
 
-    let audioResponse = await fetch(audioUrl, { headers: fetchHeaders });
-
-    // If URL expired, clear cache and retry once
-    if (!audioResponse.ok && audioResponse.status !== 206) {
-      console.log(`[Stream] URL expired for ${id}, re-extracting...`);
-      urlCache.delete(id);
-      const freshUrl = await getAudioUrl(id);
-      if (!freshUrl) {
-        return NextResponse.json({ error: "Re-extract failed" }, { status: 500 });
-      }
-      audioResponse = await fetch(freshUrl, { headers: fetchHeaders });
-    }
-
-    const responseHeaders: Record<string, string> = {
-      "Content-Type": audioResponse.headers.get("Content-Type") || "audio/mp4",
-      "Accept-Ranges": "bytes",
-      "Cache-Control": "no-cache",
-    };
-
-    const contentLength = audioResponse.headers.get("Content-Length");
-    if (contentLength) responseHeaders["Content-Length"] = contentLength;
-
+    const audioResponse = await fetch(audioUrl, { headers: fetchHeaders });
+    
+    const responseHeaders = new Headers();
+    responseHeaders.set("Content-Type", audioResponse.headers.get("Content-Type") || "audio/mp4");
+    responseHeaders.set("Accept-Ranges", "bytes");
+    
     const contentRange = audioResponse.headers.get("Content-Range");
-    if (contentRange) responseHeaders["Content-Range"] = contentRange;
+    if (contentRange) responseHeaders.set("Content-Range", contentRange);
+    
+    const contentLength = audioResponse.headers.get("Content-Length");
+    if (contentLength) responseHeaders.set("Content-Length", contentLength);
 
     return new NextResponse(audioResponse.body, {
       status: audioResponse.status,
       headers: responseHeaders,
     });
   } catch (err: any) {
-    console.error("[Proxy Error]:", err.message);
-    return NextResponse.json(
-      { error: "Stream proxy failed", details: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
