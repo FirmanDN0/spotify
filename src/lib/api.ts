@@ -194,41 +194,21 @@ export async function fetchTrack(id: string, signal?: AbortSignal): Promise<Trac
 }
 
 /**
- * Fetch trending tracks to populate the homepage.
+ * Fetch trending tracks from the server-side cached endpoint.
  */
 export async function getTrendingTracks(): Promise<Track[]> {
-  const queries = [
-    "Cruel Summer Taylor Swift", 
-    "Flowers Miley Cyrus", 
-    "Birds of a Feather Billie Eilish",
-    "Espresso Sabrina Carpenter",
-    "Starboy The Weeknd",
-    "Bohemian Rhapsody Queen",
-    "Imagine Dragons Believer",
-    "Blinding Lights"
-  ];
-  const tracks: Track[] = [];
-  const seenIds = new Set<string>();
+  try {
+    const res = await fetch(`${API_BASE_URL}/trending`);
+    if (!res.ok) return [];
 
-  for (const q of queries) {
-    try {
-      const results = await searchTracks(q);
-      if (results.length > 0) {
-        const t = results[0];
-        if (!seenIds.has(t.id)) {
-          tracks.push(t);
-          seenIds.add(t.id);
-        }
-      }
-      // Small delay to avoid ECONNRESET from YouTube Music API
-      await new Promise(r => setTimeout(r, 300));
-    } catch {
-      // Skip failed queries silently
-    }
+    const items = await res.json();
+    return items.map((item: any) => normalizeTrack(item));
+  } catch (err) {
+    console.error("Failed to fetch trending:", err);
+    return [];
   }
-
-  return tracks;
 }
+
 
 /**
  * Fetches artist details and their music.

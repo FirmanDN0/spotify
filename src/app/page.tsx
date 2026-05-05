@@ -26,20 +26,20 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-10 pb-20">
+    <div className="flex flex-col gap-8 md:gap-10 pb-20">
       {/* Header Area */}
       <header className="flex flex-col gap-2">
-        <h1 className="text-4xl font-extrabold tracking-tight text-white">
+        <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-white">
           Good Evening
         </h1>
-        <p className="text-neutral-400">Discover new music and listen to your favorites.</p>
+        <p className="text-neutral-400 text-sm md:text-base">Discover new music and listen to your favorites.</p>
       </header>
 
       {/* Recently Played */}
       {recentlyPlayed.length > 0 && (
-        <section className="flex flex-col gap-6">
-          <h2 className="text-2xl font-bold text-white">Recently Played</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <section className="flex flex-col gap-4 md:gap-6">
+          <h2 className="text-xl md:text-2xl font-bold text-white">Recently Played</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
             {recentlyPlayed.map((track) => (
               <TrackCard
                 key={`recent-${track.id}`}
@@ -52,14 +52,14 @@ export default function Home() {
       )}
 
       {/* Trending */}
-      <section className="flex flex-col gap-6">
-        <h2 className="text-2xl font-bold text-white">Trending Now</h2>
+      <section className="flex flex-col gap-4 md:gap-6">
+        <h2 className="text-xl md:text-2xl font-bold text-white">Trending Now</h2>
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-10 h-10 text-cyan-500 animate-spin" />
           </div>
         ) : trending.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
             {trending.map((track) => (
               <TrackCard
                 key={`trending-${track.id}`}

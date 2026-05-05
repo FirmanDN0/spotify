@@ -64,7 +64,7 @@ export function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="What do you want to listen to?"
-          className="w-full bg-neutral-800/80 border border-neutral-700 text-white rounded-full py-4 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition shadow-lg"
+          className="w-full bg-neutral-800/80 border border-neutral-700 text-white rounded-full py-3 md:py-4 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition shadow-lg text-sm md:text-base"
         />
         {query && (
           <button
@@ -93,7 +93,7 @@ export function SearchBar() {
         {!isLoading && results.length > 0 && (
           <div>
             <h2 className="text-2xl font-bold text-white mb-6">Top Results</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
               {results.map((track) => (
                 <TrackCard key={track.id} track={track} contextQueue={results} contextType="search" />
               ))}

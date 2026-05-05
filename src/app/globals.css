@@ -15,6 +15,7 @@
 body {
   background-color: black;
   color: white;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Custom Scrollbar */
@@ -33,4 +34,62 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #404040; /* neutral-700 */
+}
+
+/* Hide scrollbar on mobile for lyrics */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area for devices with notch / bottom bar */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Mobile touch-friendly range inputs */
+@media (max-width: 767px) {
+  input[type="range"] {
+    height: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+}
+
+/* Toast notification animation */
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.25s ease-out forwards;
+}
+
+/* Dropdown menu animation */
+@keyframes menu-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-menu-in {
+  animation: menu-in 0.15s ease-out forwards;
 }

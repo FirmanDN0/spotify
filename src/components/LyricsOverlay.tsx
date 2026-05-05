@@ -88,7 +88,8 @@ export function LyricsOverlay() {
   return (
     <div 
       className={cn(
-        "fixed inset-0 bottom-24 z-40 transition-transform duration-500 ease-in-out flex flex-col",
+        "fixed inset-0 z-40 transition-transform duration-500 ease-in-out flex flex-col",
+        "bottom-[4.5rem] md:bottom-24",
         isLyricsVisible ? "translate-y-0" : "translate-y-full"
       )}
       style={{
@@ -97,7 +98,7 @@ export function LyricsOverlay() {
     >
       <div className="absolute inset-0 bg-black/40 pointer-events-none" />
       
-      <div className="relative z-10 flex-1 overflow-y-auto scrollbar-hide px-8 py-20 md:px-32" ref={containerRef}>
+      <div className="relative z-10 flex-1 overflow-y-auto scrollbar-hide px-4 sm:px-8 md:px-32 py-12 md:py-20" ref={containerRef}>
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
             <Loader2 className="w-12 h-12 text-white animate-spin opacity-50" />
@@ -119,8 +120,8 @@ export function LyricsOverlay() {
                   key={index}
                   ref={isActive ? activeLineRef : null}
                   className={cn(
-                    "text-3xl md:text-5xl font-bold transition-all duration-300",
-                    isUnsynced ? "text-white/80 text-xl md:text-3xl" :
+                    "text-2xl sm:text-3xl md:text-5xl font-bold transition-all duration-300",
+                    isUnsynced ? "text-white/80 text-lg sm:text-xl md:text-3xl" :
                     isActive ? "text-white scale-105 origin-left drop-shadow-xl" :
                     isPassed ? "text-white/40 cursor-pointer hover:text-white/80" : "text-white/50 cursor-pointer hover:text-white/80"
                   )}

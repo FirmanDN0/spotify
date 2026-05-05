@@ -13,6 +13,8 @@ export function PlayerBar() {
   
   const {
     currentTrack,
+    queue,
+    currentIndex,
     isPlaying,
     isBuffering,
     isReady,
@@ -22,7 +24,6 @@ export function PlayerBar() {
     isShuffled,
     repeatMode,
     playContext,
-    queue,
     isLyricsVisible,
     rightPanelMode,
     appendQueue,
@@ -185,6 +186,37 @@ export function PlayerBar() {
     if (!hasInteracted) setHasInteracted();
   };
 
+  // Pre-fetching Next Track Logic
+  const lastPrefetchedId = useRef<string | null>(null);
+  
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrack || queue.length <= 1) return;
+
+    // We pre-fetch when there's less than 30 seconds left
+    const remainingTime = audio.duration - audio.currentTime;
+    
+    if (remainingTime > 0 && remainingTime < 30) {
+      // Determine the next track ID based on store logic
+      let nextIndex = currentIndex + 1;
+      if (nextIndex >= queue.length) {
+        if (repeatMode === "all") nextIndex = 0;
+        else return; // No next track
+      }
+      
+      const nextTrack = queue[nextIndex];
+      if (nextTrack && nextTrack.id !== lastPrefetchedId.current) {
+        lastPrefetchedId.current = nextTrack.id;
+        console.log(`[Player] Pre-fetching next track: ${nextTrack.title} (${nextTrack.id})`);
+        
+        // Background fetch to populate server cache
+        fetch(`/api/music/stream?id=${nextTrack.id}`).catch(() => {
+          // Ignore errors, we're just warming the cache
+        });
+      }
+    }
+  }, [progress, currentIndex, queue.length, repeatMode]);
+
   if (!currentTrack) return null;
 
   const duration = currentTrack.duration > 0 ? currentTrack.duration : audioRef.current?.duration || 0;
@@ -199,7 +231,7 @@ export function PlayerBar() {
   return (
     <div
       onClick={handleUserInteraction}
-      className="fixed bottom-0 left-0 right-0 h-24 bg-neutral-900/90 backdrop-blur-md border-t border-neutral-800 flex items-center justify-between px-6 z-50"
+      className="fixed bottom-0 left-0 right-0 h-[4.5rem] md:h-24 bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800 flex items-center justify-between px-3 md:px-6 z-50"
     >
       {/* Invisible Audio Element */}
       <audio
@@ -216,21 +248,21 @@ export function PlayerBar() {
       />
 
       {/* Track Info */}
-      <div className="flex items-center gap-4 w-1/3 min-w-[200px]">
+      <div className="flex items-center gap-3 md:gap-4 w-auto md:w-1/3 min-w-0 md:min-w-[200px] flex-shrink overflow-hidden">
         <img
           src={currentTrack.cover_image}
           alt={currentTrack.title}
-          className="w-14 h-14 rounded-md object-cover shadow-md"
+          className="w-10 h-10 md:w-14 md:h-14 rounded-md object-cover shadow-md flex-shrink-0"
         />
-        <div className="flex flex-col overflow-hidden">
-          <span className="text-white font-medium truncate">{currentTrack.title}</span>
-          <span className="text-neutral-400 text-sm truncate">{currentTrack.artist}</span>
+        <div className="flex flex-col overflow-hidden min-w-0">
+          <span className="text-white font-medium text-sm md:text-base truncate">{currentTrack.title}</span>
+          <span className="text-neutral-400 text-xs md:text-sm truncate">{currentTrack.artist}</span>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col items-center justify-center w-1/3 max-w-2xl gap-2">
-        <div className="flex items-center gap-4 md:gap-6">
+      <div className="flex flex-col items-center justify-center flex-1 md:w-1/3 md:max-w-2xl gap-1 md:gap-2 mx-2 md:mx-0">
+        <div className="flex items-center gap-3 md:gap-6">
           <button 
             onClick={toggleShuffle} 
             className={cn("transition hidden sm:block", isShuffled ? "text-cyan-500" : "text-neutral-400 hover:text-white")}
@@ -247,15 +279,15 @@ export function PlayerBar() {
               setHasInteracted();
               if (isReady || isPlaying) togglePlay();
             }}
-            className="w-10 h-10 flex items-center justify-center bg-white text-black rounded-full hover:scale-105 transition active:scale-95"
+            className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-white text-black rounded-full hover:scale-105 transition active:scale-95"
             disabled={isBuffering && !isReady}
           >
             {isBuffering && !isReady ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
             ) : isPlaying ? (
-              <Pause className="w-5 h-5 fill-current" />
+              <Pause className="w-4 h-4 md:w-5 md:h-5 fill-current" />
             ) : (
-              <Play className="w-5 h-5 fill-current ml-1" />
+              <Play className="w-4 h-4 md:w-5 md:h-5 fill-current ml-0.5" />
             )}
           </button>
 
@@ -276,7 +308,7 @@ export function PlayerBar() {
         </div>
 
         {/* Progress Bar */}
-        <div className="flex items-center w-full gap-2 text-xs text-neutral-400">
+        <div className="hidden md:flex items-center w-full gap-2 text-xs text-neutral-400">
           <span className="w-10 text-right">{formatTime(progress)}</span>
           <input
             type="range"
@@ -290,8 +322,8 @@ export function PlayerBar() {
         </div>
       </div>
 
-      {/* Extras (Volume) */}
-      <div className="flex items-center justify-end w-1/3 gap-3 min-w-[200px]">
+      {/* Extras (Volume) — Hidden on mobile */}
+      <div className="hidden md:flex items-center justify-end w-1/3 gap-3 min-w-[200px]">
         <button
           onClick={() => setRightPanelMode(rightPanelMode === "now-playing" ? "closed" : "now-playing")}
           className={cn("transition mr-2 hidden lg:block", rightPanelMode === "now-playing" ? "text-cyan-500" : "text-neutral-400 hover:text-white")}
